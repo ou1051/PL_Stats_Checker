@@ -1,14 +1,12 @@
 import requests
 import pandas as pd
+from pathlib import Path
 
 URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
 
 res = requests.get(URL, timeout=30)
-print(res.status_code)
-
 data = res.json()
-print(data.keys())
-print(len(data["elements"]))
+
 COLUMNS = [
     "id", "first_name", "second_name", "web_name", "team", "element_type", "birth_date",
     "minutes", "starts", "goals_scored", "assists", "penalties_missed",
@@ -18,18 +16,34 @@ COLUMNS = [
     "expected_goals", "expected_assists", "expected_goal_involvements", "expected_goals_conceded",
 ] # columns to keep for the CSV
 
-players = pd.DataFrame(data["elements"]) # fetching 667 players data from api
+SEASON = "2026-27"
+XG_COLUMNS = [
+    "expected_goals", "expected_assists",
+    "expected_goal_involvements", "expected_goals_conceded",
+] #　elements that need to string -> float
+
+players = pd.DataFrame(data["elements"]) # convert player list to DataFrame
 players = players[COLUMNS] # selecting what we need for csv
 
-print(players.shape)
-print(players.head())
+teams = {t["id"]: t["name"] for t in data["teams"]} # {1: "Arsenal", 2: "Aston Villa", 3: "Bournemouth", ...}
+positions = {p["id"]: p["singular_name_short"] for p in data["element_types"]} # {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 
-teams = {t["id"]: t["name"] for t in data["teams"]}
-positions = {p["id"]: p["singular_name_short"] for p in data["element_types"]}
+players["team"] = players["team"].map(teams) # team ID -> team name
+players["element_type"] = players["element_type"].map(positions) # element type -> positions
+players = players.rename(columns={"element_type": "position"}) # rename column
 
-players["team"] = players["team"].map(teams)
-players["element_type"] = players["element_type"].map(positions)
-players = players.rename(columns={"element_type": "position"})
+players[XG_COLUMNS] = players[XG_COLUMNS].apply(pd.to_numeric) # string -> float
 
-print(players[["web_name", "team", "position"]].head())
+players["season"] = SEASON # add a new column called season
+players["collected_at"] = pd.Timestamp.now().floor("s") # add a new column stores a time stamp
+
+output_dir = Path(__file__).parent / "data"
+output_dir.mkdir(exist_ok=True)
+
+file_name = f"fpl_players_{pd.Timestamp.now():%Y-%m-%d}.csv"
+output_path = output_dir / file_name
+
+players.to_csv(output_path, index=False)
+print(f"Saved {len(players)} players to {output_path}")
+
 
