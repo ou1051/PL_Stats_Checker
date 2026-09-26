@@ -5,6 +5,7 @@ from pathlib import Path
 URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
 
 res = requests.get(URL, timeout=30)
+res.raise_for_status() # for error
 data = res.json()
 
 COLUMNS = [
@@ -20,7 +21,7 @@ SEASON = "2026-27"
 XG_COLUMNS = [
     "expected_goals", "expected_assists",
     "expected_goal_involvements", "expected_goals_conceded",
-] #　elements that need to string -> float
+] # elements that need to string -> float
 
 players = pd.DataFrame(data["elements"]) # convert player list to DataFrame
 players = players[COLUMNS] # selecting what we need for csv
@@ -35,12 +36,13 @@ players = players.rename(columns={"element_type": "position"}) # rename column
 players[XG_COLUMNS] = players[XG_COLUMNS].apply(pd.to_numeric) # string -> float
 
 players["season"] = SEASON # add a new column called season
-players["collected_at"] = pd.Timestamp.now().floor("s") # add a new column stores a time stamp
+collected_at = pd.Timestamp.now().floor("s")  # take the timestamp once and reuse it
+players["collected_at"] = collected_at
 
 output_dir = Path(__file__).parent / "data"
 output_dir.mkdir(exist_ok=True)
 
-file_name = f"fpl_players_{pd.Timestamp.now():%Y-%m-%d}.csv"
+file_name = f"fpl_players_{collected_at:%Y-%m-%d}.csv"
 output_path = output_dir / file_name
 
 players.to_csv(output_path, index=False)
